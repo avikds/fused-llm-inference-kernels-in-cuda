@@ -20,7 +20,7 @@ python scaffold.py
 - [x] **8.** swiglu_kernel
 - [x] **9.** rmsnorm_kernel
 - [x] **10.** layernorm_kernel
-- [ ] **11.** fused_add_rmsnorm_kernel
+- [x] **11.** fused_add_rmsnorm_kernel
 - [ ] **12.** softmax_row_kernel
 - [ ] **13.** causal_softmax_kernel
 - [ ] **14.** embedding_lookup_kernel

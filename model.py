@@ -278,8 +278,58 @@ __global__ void layernorm_kernel(const float* x, const float* weight,
     }
 }
 
-# Step 11 - fused_add_rmsnorm_kernel (not yet solved)
-# TODO: implement
+# Step 11 - fused_add_rmsnorm_kernel
+__global__ void fused_add_rmsnorm_kernel(
+    const float* x,
+    const float* residual,
+    const float* weight,
+    float* out,
+    float* residual_out,
+    int n,
+    float eps
+) {
+    int row = blockIdx.x;
+    int tid = threadIdx.x;
+
+    const float* row_x = x + row * n;
+    const float* row_residual = residual + row * n;
+    float* row_out = out + row * n;
+    float* row_residual_out = residual_out + row * n;
+
+    // One float per warp for the block reduction.
+    __shared__ float shared[32];
+
+    // Step 1: Fused residual addition and accumulation of squares.
+    float local_sum_sq = 0.0f;
+
+    for (int i = tid; i < n; i += blockDim.x) {
+        float value = row_x[i] + row_residual[i];
+
+        // Write residual_out = x + residual.
+        row_residual_out[i] = value;
+
+        // Accumulate squared values for RMSNorm.
+        local_sum_sq += value * value;
+    }
+
+    // Step 2: Reduce the sum of squares across the block.
+    float sum_sq = block_reduce_sum(local_sum_sq, shared);
+
+    // Thread 0 computes the inverse RMS and stores it in shared memory.
+    if (tid == 0) {
+        float mean_sq = sum_sq / static_cast<float>(n);
+        shared[0] = rsqrtf(mean_sq + eps);
+    }
+
+    __syncthreads();
+
+    float inv_rms = shared[0];
+
+    // Step 3: RMSNorm and learned per-feature scaling.
+    for (int i = tid; i < n; i += blockDim.x) {
+        row_out[i] = row_residual_out[i] * inv_rms * weight[i];
+    }
+}
 
 # Step 12 - softmax_row_kernel (not yet solved)
 # TODO: implement
