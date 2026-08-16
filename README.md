@@ -27,7 +27,7 @@ python scaffold.py
 - [x] **15.** rope_kernel
 - [x] **16.** linear_kernel
 - [x] **17.** fused_linear_bias_gelu_kernel
-- [ ] **18.** mlp_swiglu_forward
+- [x] **18.** mlp_swiglu_forward
 - [ ] **19.** rmsnorm_residual_block
 - [ ] **20.** run_transformer_ffn
 

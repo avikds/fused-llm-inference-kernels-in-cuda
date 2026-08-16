@@ -639,8 +639,93 @@ __global__ void fused_linear_bias_gelu_kernel(
     }
 }
 
-# Step 18 - mlp_swiglu_forward (not yet solved)
-# TODO: implement
+# Step 18 - mlp_swiglu_forward
+void mlp_swiglu_forward(const float* x, const float* w_gate, const float* w_up,
+                        const float* w_down, float* out,
+                        int M, int hidden_dim, int intermediate_dim) {
+    // Temporary buffers for gate, up, and SwiGLU outputs.
+    float* gate_out = nullptr;
+    float* up_out = nullptr;
+    float* swiglu_out = nullptr;
+
+    size_t intermediate_size =
+        static_cast<size_t>(M) * intermediate_dim;
+
+    cudaMalloc(&gate_out, intermediate_size * sizeof(float));
+    cudaMalloc(&up_out, intermediate_size * sizeof(float));
+    cudaMalloc(&swiglu_out, intermediate_size * sizeof(float));
+
+    // One thread per output element.
+    const int threads = 256;
+
+    // ------------------------------------------------------------
+    // 1. Gate projection:
+    // gate_out = x @ w_gate^T
+    // ------------------------------------------------------------
+    int intermediate_blocks =
+        (M * intermediate_dim + threads - 1) / threads;
+
+    linear_kernel<<<intermediate_blocks, threads>>>(
+        x,
+        w_gate,
+        nullptr,
+        gate_out,
+        M,
+        intermediate_dim,
+        hidden_dim
+    );
+
+    // ------------------------------------------------------------
+    // 2. Up projection:
+    // up_out = x @ w_up^T
+    // ------------------------------------------------------------
+    linear_kernel<<<intermediate_blocks, threads>>>(
+        x,
+        w_up,
+        nullptr,
+        up_out,
+        M,
+        intermediate_dim,
+        hidden_dim
+    );
+
+    // ------------------------------------------------------------
+    // 3. SwiGLU:
+    // swiglu_out = silu(gate_out) * up_out
+    // ------------------------------------------------------------
+    swiglu_kernel<<<intermediate_blocks, threads>>>(
+        gate_out,
+        up_out,
+        swiglu_out,
+        M * intermediate_dim
+    );
+
+    // ------------------------------------------------------------
+    // 4. Down projection:
+    // out = swiglu_out @ w_down^T
+    //
+    // w_down has shape [hidden_dim, intermediate_dim].
+    // ------------------------------------------------------------
+    int output_blocks =
+        (M * hidden_dim + threads - 1) / threads;
+
+    linear_kernel<<<output_blocks, threads>>>(
+        swiglu_out,
+        w_down,
+        nullptr,
+        out,
+        M,
+        hidden_dim,
+        intermediate_dim
+    );
+
+    // Ensure all kernels have completed before freeing temporaries.
+    cudaDeviceSynchronize();
+
+    cudaFree(gate_out);
+    cudaFree(up_out);
+    cudaFree(swiglu_out);
+}
 
 # Step 19 - rmsnorm_residual_block (not yet solved)
 # TODO: implement
