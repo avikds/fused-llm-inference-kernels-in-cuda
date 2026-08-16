@@ -217,8 +217,66 @@ __global__ void rmsnorm_kernel(const float* x, const float* weight,
     }
 }
 
-# Step 10 - layernorm_kernel (not yet solved)
-# TODO: implement
+# Step 10 - layernorm_kernel
+__global__ void layernorm_kernel(const float* x, const float* weight,
+                                 const float* bias, float* out,
+                                 int n, float eps) {
+    // One block processes one row.
+    int row = blockIdx.x;
+    int tid = threadIdx.x;
+
+    const float* row_x = x + row * n;
+    float* row_out = out + row * n;
+
+    // Shared memory: one float per possible warp.
+    __shared__ float shared[32];
+
+    // Compute the local sum for this thread.
+    float local_sum = 0.0f;
+
+    for (int i = tid; i < n; i += blockDim.x) {
+        local_sum += row_x[i];
+    }
+
+    // Reduce the sum across the entire block.
+    float block_sum = block_reduce_sum(local_sum, shared);
+
+    // Broadcast the mean to all threads.
+    if (tid == 0) {
+        shared[0] = block_sum / static_cast<float>(n);
+    }
+
+    __syncthreads();
+
+    float mean = shared[0];
+
+    // Compute the local sum of squared deviations.
+    float local_var = 0.0f;
+
+    for (int i = tid; i < n; i += blockDim.x) {
+        float diff = row_x[i] - mean;
+        local_var += diff * diff;
+    }
+
+    // Reduce the variance sum across the block.
+    float block_var = block_reduce_sum(local_var, shared);
+
+    // Compute the standard deviation on thread 0.
+    if (tid == 0) {
+        shared[0] = block_var / static_cast<float>(n);
+    }
+
+    __syncthreads();
+
+    float variance = shared[0];
+    float inv_std = rsqrtf(variance + eps);
+
+    // Normalize, scale, and shift.
+    for (int i = tid; i < n; i += blockDim.x) {
+        float normalized = (row_x[i] - mean) * inv_std;
+        row_out[i] = normalized * weight[i] + bias[i];
+    }
+}
 
 # Step 11 - fused_add_rmsnorm_kernel (not yet solved)
 # TODO: implement
