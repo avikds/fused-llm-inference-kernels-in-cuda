@@ -65,8 +65,44 @@ __device__ float block_reduce_sum(float val, float* shared) {
     return (threadIdx.x == 0) ? shared[0] : 0.0f;
 }
 
-# Step 4 - block_reduce_max (not yet solved)
-# TODO: implement
+# Step 4 - block_reduce_max
+__device__ float block_reduce_max(float val, float* shared) {
+    const int lane = threadIdx.x & (warpSize - 1);
+    const int warp_id = threadIdx.x / warpSize;
+    const int num_warps = (blockDim.x + warpSize - 1) / warpSize;
+
+    // First, reduce values within each warp.
+    val = warp_reduce_max(val);
+
+    // Lane 0 of each warp stores its partial maximum.
+    if (lane == 0) {
+        shared[warp_id] = val;
+    }
+
+    __syncthreads();
+
+    // The first warp reduces the per-warp maxima.
+    if (warp_id == 0) {
+        if (lane < num_warps) {
+            val = shared[lane];
+        } else {
+            // Use a valid value for inactive lanes.
+            // shared[0] is already available after __syncthreads().
+            val = shared[0];
+        }
+
+        val = warp_reduce_max(val);
+
+        // Only thread 0 needs to return the final result.
+        if (lane == 0) {
+            shared[0] = val;
+        }
+    }
+
+    __syncthreads();
+
+    return (threadIdx.x == 0) ? shared[0] : 0.0f;
+}
 
 # Step 5 - add_residual_kernel (not yet solved)
 # TODO: implement
