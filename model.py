@@ -33,8 +33,37 @@ __device__ float warp_reduce_max(float val) {
     return val;
 }
 
-# Step 3 - block_reduce_sum (not yet solved)
-# TODO: implement
+# Step 3 - block_reduce_sum
+__device__ float block_reduce_sum(float val, float* shared) {
+    const int lane = threadIdx.x & (warpSize - 1);
+    const int warp_id = threadIdx.x / warpSize;
+    const int num_warps = (blockDim.x + warpSize - 1) / warpSize;
+
+    // First, reduce values within each warp.
+    val = warp_reduce_sum(val);
+
+    // Lane 0 of each warp writes its partial sum to shared memory.
+    if (lane == 0) {
+        shared[warp_id] = val;
+    }
+
+    __syncthreads();
+
+    // Have the first warp reduce the per-warp partial sums.
+    if (warp_id == 0) {
+        val = (lane < num_warps) ? shared[lane] : 0.0f;
+        val = warp_reduce_sum(val);
+
+        // The complete block sum is returned only by thread 0.
+        if (lane == 0) {
+            shared[0] = val;
+        }
+    }
+
+    __syncthreads();
+
+    return (threadIdx.x == 0) ? shared[0] : 0.0f;
+}
 
 # Step 4 - block_reduce_max (not yet solved)
 # TODO: implement
