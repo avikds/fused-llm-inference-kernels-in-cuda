@@ -607,8 +607,37 @@ __global__ void linear_kernel(const float* x, const float* weight,
     }
 }
 
-# Step 17 - fused_linear_bias_gelu_kernel (not yet solved)
-# TODO: implement
+# Step 17 - fused_linear_bias_gelu_kernel
+__global__ void fused_linear_bias_gelu_kernel(
+    const float* x, const float* weight, const float* bias,
+    float* out, int M, int N, int K) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total = M * N;
+
+    if (idx < total) {
+        int m = idx / N;
+        int n = idx % N;
+
+        // Compute x[m] dot weight[n].
+        float sum = 0.0f;
+
+        for (int k = 0; k < K; ++k) {
+            sum += x[m * K + k] * weight[n * K + k];
+        }
+
+        // Add bias.
+        float val = sum + bias[n];
+
+        // GELU tanh approximation.
+        const float sqrt_2_over_pi = 0.7978845608f;
+        const float coeff = 0.044715f;
+
+        float val3 = val * val * val;
+        float inner = sqrt_2_over_pi * (val + coeff * val3);
+
+        out[idx] = 0.5f * val * (1.0f + tanhf(inner));
+    }
+}
 
 # Step 18 - mlp_swiglu_forward (not yet solved)
 # TODO: implement
