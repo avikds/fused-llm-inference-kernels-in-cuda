@@ -143,8 +143,19 @@ __global__ void silu_kernel(const float* x, float* out, int n) {
     }
 }
 
-# Step 8 - swiglu_kernel (not yet solved)
-# TODO: implement
+# Step 8 - swiglu_kernel
+__global__ void swiglu_kernel(const float* gate, const float* up, float* out, int n) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (i < n) {
+        float g = gate[i];
+
+        // SiLU(g) = g * sigmoid(g)
+        float silu = g / (1.0f + expf(-g));
+
+        out[i] = silu * up[i];
+    }
+}
 
 # Step 9 - rmsnorm_kernel (not yet solved)
 # TODO: implement
