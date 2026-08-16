@@ -539,8 +539,48 @@ __global__ void embedding_lookup_kernel(const int* token_ids,
     }
 }
 
-# Step 15 - rope_kernel (not yet solved)
-# TODO: implement
+# Step 15 - rope_kernel
+__global__ void rope_kernel(float* q, float* k,
+                            const float* cos_table, const float* sin_table,
+                            int seq_len, int n_heads, int head_dim) {
+    int pair_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int half = head_dim / 2;
+    int total = seq_len * n_heads * half;
+
+    if (pair_idx < total) {
+        int pos = pair_idx / (n_heads * half);
+        int rem = pair_idx % (n_heads * half);
+
+        int head = rem / half;
+        int pair = rem % half;
+
+        int even_dim = 2 * pair;
+        int odd_dim = even_dim + 1;
+
+        // Base offset for [pos, head, 0].
+        int base = (pos * n_heads + head) * head_dim;
+
+        float c = cos_table[pos * half + pair];
+        float s = sin_table[pos * half + pair];
+
+        // Load original Q pair.
+        float q_even = q[base + even_dim];
+        float q_odd  = q[base + odd_dim];
+
+        // Load original K pair.
+        float k_even = k[base + even_dim];
+        float k_odd  = k[base + odd_dim];
+
+        // Apply RoPE rotation:
+        // [x0'] = [ c  -s ] [x0]
+        // [x1']   [ s   c ] [x1]
+        q[base + even_dim] = q_even * c - q_odd * s;
+        q[base + odd_dim]  = q_even * s + q_odd * c;
+
+        k[base + even_dim] = k_even * c - k_odd * s;
+        k[base + odd_dim]  = k_even * s + k_odd * c;
+    }
+}
 
 # Step 16 - linear_kernel (not yet solved)
 # TODO: implement
