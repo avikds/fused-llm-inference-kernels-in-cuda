@@ -343,23 +343,20 @@ __global__ void softmax_row_kernel(const float* x, float* out, int rows, int col
     const float* row_x = x + row * cols;
     float* row_out = out + row * cols;
 
-    // Dynamic shared memory: one float per warp.
-    extern __shared__ float shared[];
+    // Static shared memory: one float per warp.
+    __shared__ float shared[32];
 
     int lane = tid & (warpSize - 1);
     int warp_id = tid / warpSize;
     int num_warps = (blockDim.x + warpSize - 1) / warpSize;
 
-    // ------------------------------------------------------------
-    // Step 1: Find the maximum value in the row.
-    // ------------------------------------------------------------
+    // Find row maximum.
     float local_max = -INFINITY;
 
     for (int i = tid; i < cols; i += blockDim.x) {
         local_max = fmaxf(local_max, row_x[i]);
     }
 
-    // Warp-level maximum reduction.
     for (int offset = warpSize / 2; offset > 0; offset >>= 1) {
         local_max = fmaxf(
             local_max,
@@ -367,14 +364,12 @@ __global__ void softmax_row_kernel(const float* x, float* out, int rows, int col
         );
     }
 
-    // Store one maximum per warp.
     if (lane == 0) {
         shared[warp_id] = local_max;
     }
 
     __syncthreads();
 
-    // First warp reduces the warp-level maxima.
     if (warp_id == 0) {
         local_max = (lane < num_warps) ? shared[lane] : -INFINITY;
 
@@ -394,28 +389,23 @@ __global__ void softmax_row_kernel(const float* x, float* out, int rows, int col
 
     float row_max = shared[0];
 
-    // ------------------------------------------------------------
-    // Step 2: Compute the sum of exp(x - row_max).
-    // ------------------------------------------------------------
+    // Compute sum of exp(x - max).
     float local_sum = 0.0f;
 
     for (int i = tid; i < cols; i += blockDim.x) {
         local_sum += expf(row_x[i] - row_max);
     }
 
-    // Warp-level sum reduction.
     for (int offset = warpSize / 2; offset > 0; offset >>= 1) {
         local_sum += __shfl_down_sync(0xFFFFFFFF, local_sum, offset);
     }
 
-    // Store one sum per warp.
     if (lane == 0) {
         shared[warp_id] = local_sum;
     }
 
     __syncthreads();
 
-    // First warp reduces the warp-level sums.
     if (warp_id == 0) {
         local_sum = (lane < num_warps) ? shared[lane] : 0.0f;
 
@@ -432,11 +422,9 @@ __global__ void softmax_row_kernel(const float* x, float* out, int rows, int col
 
     float row_sum = shared[0];
 
-    // ------------------------------------------------------------
-    // Step 3: Normalize.
-    // ------------------------------------------------------------
+    // Normalize.
     for (int i = tid; i < cols; i += blockDim.x) {
-        out[i + row * cols] = expf(row_x[i] - row_max) / row_sum;
+        row_out[i] = expf(row_x[i] - row_max) / row_sum;
     }
 }
 
