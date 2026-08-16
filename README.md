@@ -11,7 +11,7 @@ python scaffold.py
 ## Steps
 
 - [x] **1.** warp_reduce_sum
-- [ ] **2.** warp_reduce_max
+- [x] **2.** warp_reduce_max
 - [ ] **3.** block_reduce_sum
 - [ ] **4.** block_reduce_max
 - [ ] **5.** add_residual_kernel

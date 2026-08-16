@@ -20,8 +20,18 @@ __device__ float warp_reduce_sum(float val) {
     return val;
 }
 
-# Step 2 - warp_reduce_max (not yet solved)
-# TODO: implement
+# Step 2 - warp_reduce_max
+__device__ float warp_reduce_max(float val) {
+    // Reduce the maximum across all 32 lanes of the warp.
+    for (int offset = warpSize / 2; offset > 0; offset >>= 1) {
+        val = fmaxf(val, __shfl_down_sync(0xFFFFFFFF, val, offset));
+    }
+
+    // Broadcast the maximum from lane 0 to every lane.
+    val = __shfl_sync(0xFFFFFFFF, val, 0);
+
+    return val;
+}
 
 # Step 3 - block_reduce_sum (not yet solved)
 # TODO: implement
