@@ -14,7 +14,7 @@ python scaffold.py
 - [x] **2.** warp_reduce_max
 - [x] **3.** block_reduce_sum
 - [x] **4.** block_reduce_max
-- [ ] **5.** add_residual_kernel
+- [x] **5.** add_residual_kernel
 - [ ] **6.** gelu_kernel
 - [ ] **7.** silu_kernel
 - [ ] **8.** swiglu_kernel
