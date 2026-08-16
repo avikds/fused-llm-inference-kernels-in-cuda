@@ -157,8 +157,65 @@ __global__ void swiglu_kernel(const float* gate, const float* up, float* out, in
     }
 }
 
-# Step 9 - rmsnorm_kernel (not yet solved)
-# TODO: implement
+# Step 9 - rmsnorm_kernel
+__global__ void rmsnorm_kernel(const float* x, const float* weight,
+                               float* out, int n, float eps) {
+    // One block processes one row.
+    int row = blockIdx.x;
+    int tid = threadIdx.x;
+
+    const float* row_x = x + row * n;
+    float* row_out = out + row * n;
+
+    // Accumulate the sum of squares for this row.
+    float sum_sq = 0.0f;
+
+    for (int i = tid; i < n; i += blockDim.x) {
+        float v = row_x[i];
+        sum_sq += v * v;
+    }
+
+    // Warp-level reduction of the sum of squares.
+    for (int offset = warpSize / 2; offset > 0; offset >>= 1) {
+        sum_sq += __shfl_down_sync(0xFFFFFFFF, sum_sq, offset);
+    }
+
+    // Store one partial sum per warp.
+    __shared__ float warp_sums[32];
+
+    int lane = tid & (warpSize - 1);
+    int warp_id = tid / warpSize;
+    int num_warps = (blockDim.x + warpSize - 1) / warpSize;
+
+    if (lane == 0) {
+        warp_sums[warp_id] = sum_sq;
+    }
+
+    __syncthreads();
+
+    // First warp reduces the warp-level partial sums.
+    if (warp_id == 0) {
+        sum_sq = (lane < num_warps) ? warp_sums[lane] : 0.0f;
+
+        for (int offset = warpSize / 2; offset > 0; offset >>= 1) {
+            sum_sq += __shfl_down_sync(0xFFFFFFFF, sum_sq, offset);
+        }
+
+        if (lane == 0) {
+            warp_sums[0] = sum_sq;
+        }
+    }
+
+    __syncthreads();
+
+    // RMS = sqrt(mean(x^2) + eps)
+    float rms = sqrtf(warp_sums[0] / static_cast<float>(n) + eps);
+
+    // Normalize and scale by the learned weight.
+    for (int i = tid; i < n; i += blockDim.x) {
+        row_out[i] = (row_x[i] / rms) * weight[i];
+    }
+}
 
 # Step 10 - layernorm_kernel (not yet solved)
 # TODO: implement

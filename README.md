@@ -18,7 +18,7 @@ python scaffold.py
 - [x] **6.** gelu_kernel
 - [x] **7.** silu_kernel
 - [x] **8.** swiglu_kernel
-- [ ] **9.** rmsnorm_kernel
+- [x] **9.** rmsnorm_kernel
 - [ ] **10.** layernorm_kernel
 - [ ] **11.** fused_add_rmsnorm_kernel
 - [ ] **12.** softmax_row_kernel
