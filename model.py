@@ -114,8 +114,24 @@ __global__ void add_residual_kernel(const float* x, const float* residual,
     }
 }
 
-# Step 6 - gelu_kernel (not yet solved)
-# TODO: implement
+# Step 6 - gelu_kernel
+__global__ void gelu_kernel(const float* x, float* out, int n) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (i < n) {
+        float val = x[i];
+
+        // Standard tanh approximation of GELU:
+        // GELU(x) = 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
+        const float sqrt_2_over_pi = 0.7978845608f;
+        const float coeff = 0.044715f;
+
+        float x3 = val * val * val;
+        float inner = sqrt_2_over_pi * (val + coeff * x3);
+
+        out[i] = 0.5f * val * (1.0f + tanhf(inner));
+    }
+}
 
 # Step 7 - silu_kernel (not yet solved)
 # TODO: implement
