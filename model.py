@@ -752,6 +752,83 @@ void rmsnorm_residual_block(
     );
 }
 
-# Step 20 - run_transformer_ffn (not yet solved)
-# TODO: implement
+# Step 20 - run_transformer_ffn
+void run_transformer_ffn(const float* x, const float* residual,
+                         const float* norm_weight, const float* w_gate,
+                         const float* w_up, const float* w_down, float* out,
+                         int M, int hidden_dim, int intermediate_dim,
+                         float eps) {
+    size_t total_elements =
+        static_cast<size_t>(M) * hidden_dim;
+
+    float* norm_out = nullptr;
+    float* residual_out = nullptr;
+    float* mlp_out = nullptr;
+
+    // Temporary buffers:
+    // residual_out = x + residual
+    // norm_out     = RMSNorm(residual_out)
+    // mlp_out      = MLP(norm_out)
+    cudaMalloc(&norm_out, total_elements * sizeof(float));
+    cudaMalloc(&residual_out, total_elements * sizeof(float));
+    cudaMalloc(&mlp_out, total_elements * sizeof(float));
+
+    // ------------------------------------------------------------
+    // 1. Residual addition + RMSNorm.
+    //
+    // residual_out = x + residual
+    // norm_out = RMSNorm(residual_out) * norm_weight
+    // ------------------------------------------------------------
+    rmsnorm_residual_block(
+        x,
+        residual,
+        norm_weight,
+        norm_out,
+        residual_out,
+        M,
+        hidden_dim,
+        eps
+    );
+
+    // ------------------------------------------------------------
+    // 2. SwiGLU MLP.
+    //
+    // mlp_out =
+    //   (silu(norm_out @ w_gate^T) *
+    //    (norm_out @ w_up^T)) @ w_down^T
+    // ------------------------------------------------------------
+    mlp_swiglu_forward(
+        norm_out,
+        w_gate,
+        w_up,
+        w_down,
+        mlp_out,
+        M,
+        hidden_dim,
+        intermediate_dim
+    );
+
+    // ------------------------------------------------------------
+    // 3. Final residual connection.
+    //
+    // out = residual_out + mlp_out
+    // ------------------------------------------------------------
+    int threads = 256;
+    int total = M * hidden_dim;
+    int blocks = (total + threads - 1) / threads;
+
+    add_residual_kernel<<<blocks, threads>>>(
+        residual_out,
+        mlp_out,
+        out,
+        total
+    );
+
+    // Ensure the final output is complete before freeing temporaries.
+    cudaDeviceSynchronize();
+
+    cudaFree(norm_out);
+    cudaFree(residual_out);
+    cudaFree(mlp_out);
+}
 

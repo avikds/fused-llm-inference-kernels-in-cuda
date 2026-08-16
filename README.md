@@ -29,7 +29,7 @@ python scaffold.py
 - [x] **17.** fused_linear_bias_gelu_kernel
 - [x] **18.** mlp_swiglu_forward
 - [x] **19.** rmsnorm_residual_block
-- [ ] **20.** run_transformer_ffn
+- [x] **20.** run_transformer_ffn
 
 ---
 
