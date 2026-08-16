@@ -440,8 +440,81 @@ __global__ void softmax_row_kernel(const float* x, float* out, int rows, int col
     }
 }
 
-# Step 13 - causal_softmax_kernel (not yet solved)
-# TODO: implement
+# Step 13 - causal_softmax_kernel
+__global__ void causal_softmax_kernel(const float* x, float* out, int rows, int cols) {
+    int row = blockIdx.x;
+    int tid = threadIdx.x;
+
+    if (row >= rows) {
+        return;
+    }
+
+    const float* row_x = x + row * cols;
+    float* row_out = out + row * cols;
+
+    // One float per warp for block reductions.
+    __shared__ float shared[32];
+
+    // ------------------------------------------------------------
+    // Step 1: Find the maximum over the unmasked elements.
+    // Only columns c <= row participate.
+    // ------------------------------------------------------------
+    float local_max = -1.0e30f;
+
+    for (int i = tid; i < cols; i += blockDim.x) {
+        if (i <= row) {
+            local_max = fmaxf(local_max, row_x[i]);
+        }
+    }
+
+    float row_max = block_reduce_max(local_max, shared);
+
+    // block_reduce_max returns the valid result only on thread 0.
+    // Broadcast it to the entire block.
+    if (tid == 0) {
+        shared[0] = row_max;
+    }
+
+    __syncthreads();
+
+    row_max = shared[0];
+
+    // ------------------------------------------------------------
+    // Step 2: Compute the sum of exp(x - max) over c <= row.
+    // Masked positions contribute zero.
+    // ------------------------------------------------------------
+    float local_sum = 0.0f;
+
+    for (int i = tid; i < cols; i += blockDim.x) {
+        if (i <= row) {
+            local_sum += expf(row_x[i] - row_max);
+        }
+    }
+
+    float row_sum = block_reduce_sum(local_sum, shared);
+
+    // Broadcast the block-wide sum to all threads.
+    if (tid == 0) {
+        shared[0] = row_sum;
+    }
+
+    __syncthreads();
+
+    row_sum = shared[0];
+
+    // ------------------------------------------------------------
+    // Step 3: Write the causal softmax.
+    // Masked positions c > row are explicitly written as zero.
+    // ------------------------------------------------------------
+    for (int i = tid; i < cols; i += blockDim.x) {
+        if (i <= row) {
+            out[i + row * cols] =
+                expf(row_x[i] - row_max) / row_sum;
+        } else {
+            row_out[i] = 0.0f;
+        }
+    }
+}
 
 # Step 14 - embedding_lookup_kernel (not yet solved)
 # TODO: implement

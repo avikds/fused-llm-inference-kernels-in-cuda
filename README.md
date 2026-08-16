@@ -22,7 +22,7 @@ python scaffold.py
 - [x] **10.** layernorm_kernel
 - [x] **11.** fused_add_rmsnorm_kernel
 - [x] **12.** softmax_row_kernel
-- [ ] **13.** causal_softmax_kernel
+- [x] **13.** causal_softmax_kernel
 - [ ] **14.** embedding_lookup_kernel
 - [ ] **15.** rope_kernel
 - [ ] **16.** linear_kernel
