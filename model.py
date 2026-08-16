@@ -516,8 +516,28 @@ __global__ void causal_softmax_kernel(const float* x, float* out, int rows, int 
     }
 }
 
-# Step 14 - embedding_lookup_kernel (not yet solved)
-# TODO: implement
+# Step 14 - embedding_lookup_kernel
+__global__ void embedding_lookup_kernel(const int* token_ids,
+                                        const float* weight,
+                                        float* out,
+                                        int seq_len,
+                                        int vocab_size,
+                                        int embed_dim) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total = seq_len * embed_dim;
+
+    if (idx < total) {
+        int pos = idx / embed_dim;
+        int dim = idx % embed_dim;
+
+        int token_id = token_ids[pos];
+
+        // Guard against invalid token IDs.
+        if (token_id >= 0 && token_id < vocab_size) {
+            out[idx] = weight[token_id * embed_dim + dim];
+        }
+    }
+}
 
 # Step 15 - rope_kernel (not yet solved)
 # TODO: implement
