@@ -31,6 +31,10 @@ python scaffold.py
 - [x] **19.** rmsnorm_residual_block
 - [x] **20.** run_transformer_ffn
 
----
+## Results
 
-Built on Deep-ML.
+```
+FFN out[0..3]: 42.815037 33.395176 -21.104717 -0.468142
+FFN out[last]: -43.480946
+scaffold OK
+```
